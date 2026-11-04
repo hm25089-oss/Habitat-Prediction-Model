@@ -9,11 +9,11 @@ import streamlit as st
 
 
 # ====================================================
-# 1. 페이지 설정
+# 1. 기본 설정
 # ====================================================
 
 st.set_page_config(
-    page_title="Habitat Prediction Model",
+    page_title="Habitat-Prediction-Model",
     page_icon="🌿",
     layout="centered",
 )
@@ -21,7 +21,6 @@ st.set_page_config(
 BASE_DIR = Path(__file__).resolve().parent
 
 GROUPS = ["개구리", "매미", "새"]
-TIME_SLOTS = ["새벽", "오전", "한낮", "저녁", "밤"]
 
 HABITATS = [
     "도심/공원",
@@ -30,218 +29,201 @@ HABITATS = [
     "습지/물가",
 ]
 
+TIME_SLOTS = ["새벽", "오전", "한낮", "저녁", "밤"]
+
+# 최고점과 10점 이내이면 함께 후보로 표시합니다.
+# 검증된 생태학적 기준이 아닌 임시 표시 기준입니다.
+CANDIDATE_MARGIN = 10.0
+
 
 # ====================================================
-# 2. 생태 정보
+# 2. 종별 생태 정보
 #
-# 기존에 제공한 코드의 수치를 사용합니다.
-# 이 자료는 실제 관측값이 아니며 별도 검증이 필요합니다.
+# 기존에 제공한 수치를 사용합니다.
+# 자료의 정확성은 별도로 확인해야 합니다.
 #
-# 순서:
-# 종, 그룹, 출현 월, 활동 시간, 기온 범위,
-# 서식 환경 코드, 울음소리, 설명
+# 서식 환경 코드 순서:
+# 도심/공원, 산림/숲, 초지/농경지, 습지/물가
 # ====================================================
 
-SPECIES_ROWS = [
-    (
-        "두꺼비", "개구리",
-        [2, 3, 4],
-        ["오전", "저녁", "밤"],
-        [1.5, 12.3],
-        [1, 1, 1, 1],
-        "콕— 콕— 콕—",
-        "갈색 몸에 돌기가 많고 눈 뒤에 독샘이 있다. "
-        "평소 육상에서 생활하다 봄철 물가에서 번식한다.",
-    ),
-    (
-        "청개구리", "개구리",
-        [4, 5, 6],
-        ["오전", "저녁", "밤"],
-        [12.3, 21.6],
-        [1, 1, 1, 1],
-        "꽥 꽥 꽥 / 깩 깩 깩",
-        "몸길이 약 2.5~4cm. 발가락 끝에 흡반이 있어 "
-        "풀과 나무를 잘 타고 논과 웅덩이에서 번식한다.",
-    ),
-    (
-        "참개구리", "개구리",
-        [4, 5, 6],
-        ["저녁", "밤"],
-        [12.3, 21.6],
-        [1, 0, 1, 1],
-        "까르르르르 / 꾸르륵 꾸르륵",
-        "몸길이 약 6~9cm. 등에 검은 반점과 밝은 중앙 줄이 있고 "
-        "논과 연못 등에서 생활한다.",
-    ),
-    (
-        "황소개구리", "개구리",
-        [4, 5, 6, 7],
-        ["저녁", "밤"],
-        [12.3, 24.8],
-        [1, 0, 1, 1],
-        "우음— 우음— / 우우웅",
-        "몸길이 약 15~20cm. 눈 뒤 고막이 뚜렷하며 "
-        "저수지와 연못 등에서 생활한다.",
-    ),
-    (
-        "북방산개구리", "개구리",
-        [2, 3, 4],
-        ["한낮", "저녁", "밤"],
-        [1.5, 12.3],
-        [1, 1, 1, 1],
-        "호르르릉 / 오그그그그",
-        "몸길이 약 5~8.5cm. 산림에서 생활하고 이른 봄 "
-        "논이나 계곡 주변 물웅덩이에서 번식한다.",
-    ),
-    (
-        "맹꽁이", "개구리",
-        [5, 6, 7, 8],
-        ["저녁", "밤"],
-        [17.5, 25.3],
-        [1, 1, 1, 1],
-        "맹— 맹— / 꽁— 꽁—",
-        "몸길이 약 3.5~5.5cm. 몸통이 둥글고 팔다리가 짧다. "
-        "장마철 물웅덩이에서 번식하며 비가 오면 낮에도 운다.",
-    ),
-    (
-        "유지매미", "매미",
-        [6, 7, 8, 9],
-        ["오전", "한낮", "저녁"],
-        [20.4, 28.2],
-        [1, 1, 1, 0],
-        "찍 끄르르르 / 딕! 쯔그르르르",
-        "몸길이 34~36mm, 날개 끝까지 약 50~60mm.",
-    ),
-    (
-        "애매미", "매미",
-        [6, 7, 8, 9],
-        ["오전", "한낮", "저녁"],
-        [20.4, 28.2],
-        [1, 1, 1, 0],
-        "스삐오스 스삐오스 치르르르",
-        "작은 크기를 가지며 해발 600m 이하에서 주로 서식한다.",
-    ),
-    (
-        "참매미", "매미",
-        [6, 7, 8, 9],
-        ["새벽", "오전", "한낮", "저녁"],
-        [20.4, 28.2],
-        [1, 1, 1, 0],
-        "맴맴맴",
-        "머리와 가슴이 단단하고 배는 짧고 두툼하다.",
-    ),
-    (
-        "쓰름매미", "매미",
-        [7, 8],
-        ["오전", "저녁"],
-        [21.4, 29.9],
-        [1, 1, 1, 0],
-        "쓰름쓰름",
-        "울음소리가 쓰름, 쓰름으로 들려 이름이 붙었다.",
-    ),
-    (
-        "털매미", "매미",
-        [6, 7, 8, 9],
-        ["오전", "한낮", "저녁"],
-        [15.0, 34.0],
-        [1, 1, 1, 0],
-        "찌이이이— / 쓰으으으—",
-        "몸길이 약 20~24mm, 날개 끝까지 약 35~40mm. "
-        "길게 울다가 음높이가 바뀐다.",
-    ),
-    (
-        "말매미", "매미",
-        [6, 7, 8, 9, 10],
-        ["오전", "한낮", "밤"],
-        [24.0, 30.0],
-        [1, 1, 1, 0],
-        "찌르르르",
-        "우리나라 매미 중 가장 큰 종으로 한반도 전역에 서식한다.",
-    ),
-    (
-        "물까치", "새",
-        list(range(1, 13)),
-        ["오전", "한낮", "저녁"],
-        [-4.6, 24.9],
-        [1, 1, 1, 0],
-        "꺄악-꺅꺅꺅꺅꺅",
-        "일반적으로 무리 지어 생활하는 텃새로 한반도 전역에 서식한다.",
-    ),
-    (
-        "까마귀", "새",
-        list(range(1, 13)),
-        ["오전", "한낮", "저녁"],
-        [-0.9, 25.1],
-        [1, 1, 1, 1],
-        "까악— 까악—",
-        "몸길이 약 50cm. 검은 몸에 녹색 광택이 있고 "
-        "산림·농경지·공원·하천 등에서 연중 생활한다.",
-    ),
-    (
-        "멧비둘기", "새",
-        list(range(1, 13)),
-        ["오전", "한낮"],
-        [-15.0, 35.0],
-        [1, 1, 0, 0],
-        "구, 구, 쿠-, 쿠-",
-        "몸길이 약 33cm. 목 옆에 회색과 검은색 줄무늬 반점이 있다.",
-    ),
-    (
-        "뻐꾸기", "새",
-        [4, 5, 6, 7, 8, 9],
-        ["오전", "한낮", "저녁", "밤"],
-        [12.3, 25.3],
-        [1, 1, 1, 1],
-        "뻐꾹- / 삐삐삐삐",
-        "몸길이 32~36cm. 눈과 눈테가 노란색이고 몸은 옅은 검은색이다.",
-    ),
-    (
-        "까치", "새",
-        list(range(1, 13)),
-        ["오전", "한낮"],
-        [-0.6, 25.3],
-        [1, 1, 1, 0],
-        "꺅-꺅-꺅-꺅",
-        "전체 길이 약 46cm. 윗면은 푸른 광택의 검은색이고 배는 흰색이다.",
-    ),
-    (
-        "참새", "새",
-        list(range(1, 13)),
-        ["오전", "한낮", "저녁"],
-        [25.0, 35.0],
-        [1, 0, 1, 0],
-        "짹 짹",
-        "몸길이 약 14.5cm. 윗면은 밤색이고 등에 검은 줄무늬가 있으며 "
-        "가슴과 배는 흰색이다.",
-    ),
-]
-
-SPECIES_DB = {}
-
-for row in SPECIES_ROWS:
-    SPECIES_DB[row[0]] = {
-        "group": row[1],
-        "months": row[2],
-        "times": row[3],
-        "temp": row[4],
-        "hab": row[5],
-        "sound": row[6],
-        "desc": row[7],
-    }
+SPECIES_DB = {
+    "두꺼비": {
+        "group": "개구리",
+        "months": [2, 3, 4],
+        "times": ["오전", "저녁", "밤"],
+        "temp": [1.5, 12.3],
+        "hab": [1, 1, 1, 1],
+        "sound": "콕— 콕— 콕—",
+        "desc": "갈색 몸에 돌기가 많고 눈 뒤에 독샘이 있다. 봄철 물가에서 번식한다.",
+    },
+    "청개구리": {
+        "group": "개구리",
+        "months": [4, 5, 6],
+        "times": ["오전", "저녁", "밤"],
+        "temp": [12.3, 21.6],
+        "hab": [1, 1, 1, 1],
+        "sound": "꽥 꽥 꽥 / 깩 깩 깩",
+        "desc": "발가락 끝에 흡반이 있어 풀과 나무를 잘 타고 논과 웅덩이에서 번식한다.",
+    },
+    "참개구리": {
+        "group": "개구리",
+        "months": [4, 5, 6],
+        "times": ["저녁", "밤"],
+        "temp": [12.3, 21.6],
+        "hab": [1, 0, 1, 1],
+        "sound": "까르르르르 / 꾸르륵 꾸르륵",
+        "desc": "등에 검은 반점과 밝은 중앙 줄이 있고 논과 연못 등에서 생활한다.",
+    },
+    "황소개구리": {
+        "group": "개구리",
+        "months": [4, 5, 6, 7],
+        "times": ["저녁", "밤"],
+        "temp": [12.3, 24.8],
+        "hab": [1, 0, 1, 1],
+        "sound": "우음— 우음— / 우우웅",
+        "desc": "몸집이 크고 눈 뒤 고막이 뚜렷하다. 저수지와 연못 등에서 생활한다.",
+    },
+    "북방산개구리": {
+        "group": "개구리",
+        "months": [2, 3, 4],
+        "times": ["한낮", "저녁", "밤"],
+        "temp": [1.5, 12.3],
+        "hab": [1, 1, 1, 1],
+        "sound": "호르르릉 / 오그그그그",
+        "desc": "산림에서 생활하고 이른 봄 논이나 계곡 주변 물웅덩이에서 번식한다.",
+    },
+    "맹꽁이": {
+        "group": "개구리",
+        "months": [5, 6, 7, 8],
+        "times": ["저녁", "밤"],
+        "temp": [17.5, 25.3],
+        "hab": [1, 1, 1, 1],
+        "sound": "맹— 맹— / 꽁— 꽁—",
+        "desc": "몸통이 둥글고 팔다리가 짧다. 장마철 물웅덩이에서 번식하며 비가 오면 낮에도 운다.",
+    },
+    "유지매미": {
+        "group": "매미",
+        "months": [6, 7, 8, 9],
+        "times": ["오전", "한낮", "저녁"],
+        "temp": [20.4, 28.2],
+        "hab": [1, 1, 1, 0],
+        "sound": "찍 끄르르르 / 딕! 쯔그르르르",
+        "desc": "몸길이 34~36mm, 날개 끝까지 약 50~60mm.",
+    },
+    "애매미": {
+        "group": "매미",
+        "months": [6, 7, 8, 9],
+        "times": ["오전", "한낮", "저녁"],
+        "temp": [20.4, 28.2],
+        "hab": [1, 1, 1, 0],
+        "sound": "스삐오스 스삐오스 치르르르",
+        "desc": "작은 크기를 가지며 해발 600m 이하에서 주로 서식한다.",
+    },
+    "참매미": {
+        "group": "매미",
+        "months": [6, 7, 8, 9],
+        "times": ["새벽", "오전", "한낮", "저녁"],
+        "temp": [20.4, 28.2],
+        "hab": [1, 1, 1, 0],
+        "sound": "맴맴맴",
+        "desc": "머리와 가슴이 단단하고 배는 짧고 두툼하다.",
+    },
+    "쓰름매미": {
+        "group": "매미",
+        "months": [7, 8],
+        "times": ["오전", "저녁"],
+        "temp": [21.4, 29.9],
+        "hab": [1, 1, 1, 0],
+        "sound": "쓰름쓰름",
+        "desc": "울음소리가 쓰름, 쓰름으로 들려 이름이 붙었다.",
+    },
+    "털매미": {
+        "group": "매미",
+        "months": [6, 7, 8, 9],
+        "times": ["오전", "한낮", "저녁"],
+        "temp": [15.0, 34.0],
+        "hab": [1, 1, 1, 0],
+        "sound": "찌이이이— / 쓰으으으—",
+        "desc": "몸길이 약 20~24mm, 날개 끝까지 약 35~40mm. 길게 울다가 음높이가 바뀐다.",
+    },
+    "말매미": {
+        "group": "매미",
+        "months": [6, 7, 8, 9, 10],
+        "times": ["오전", "한낮", "밤"],
+        "temp": [24.0, 30.0],
+        "hab": [1, 1, 1, 0],
+        "sound": "찌르르르",
+        "desc": "우리나라 매미 중 가장 큰 종으로 한반도 전역에 서식한다.",
+    },
+    "물까치": {
+        "group": "새",
+        "months": list(range(1, 13)),
+        "times": ["오전", "한낮", "저녁"],
+        "temp": [-4.6, 24.9],
+        "hab": [1, 1, 1, 0],
+        "sound": "꺄악-꺅꺅꺅꺅꺅",
+        "desc": "일반적으로 무리 지어 생활하는 텃새로 한반도 전역에 서식한다.",
+    },
+    "까마귀": {
+        "group": "새",
+        "months": list(range(1, 13)),
+        "times": ["오전", "한낮", "저녁"],
+        "temp": [-0.9, 25.1],
+        "hab": [1, 1, 1, 1],
+        "sound": "까악— 까악—",
+        "desc": "산림·농경지·공원·하천 등에서 연중 생활하는 검은색 새이다.",
+    },
+    "멧비둘기": {
+        "group": "새",
+        "months": list(range(1, 13)),
+        "times": ["오전", "한낮"],
+        "temp": [-15.0, 35.0],
+        "hab": [1, 1, 0, 0],
+        "sound": "구, 구, 쿠-, 쿠-",
+        "desc": "몸길이 약 33cm. 목 옆에 회색과 검은색 줄무늬 반점이 있다.",
+    },
+    "뻐꾸기": {
+        "group": "새",
+        "months": [4, 5, 6, 7, 8, 9],
+        "times": ["오전", "한낮", "저녁", "밤"],
+        "temp": [12.3, 25.3],
+        "hab": [1, 1, 1, 1],
+        "sound": "뻐꾹- / 삐삐삐삐",
+        "desc": "몸길이 32~36cm. 눈과 눈테가 노란색이고 몸은 옅은 검은색이다.",
+    },
+    "까치": {
+        "group": "새",
+        "months": list(range(1, 13)),
+        "times": ["오전", "한낮"],
+        "temp": [-0.6, 25.3],
+        "hab": [1, 1, 1, 0],
+        "sound": "꺅-꺅-꺅-꺅",
+        "desc": "윗면은 푸른 광택의 검은색이고 배는 흰색이다.",
+    },
+    "참새": {
+        "group": "새",
+        "months": list(range(1, 13)),
+        "times": ["오전", "한낮", "저녁"],
+        "temp": [25.0, 35.0],
+        "hab": [1, 0, 1, 0],
+        "sound": "짹 짹",
+        "desc": "윗면은 밤색이고 등에 검은 줄무늬가 있으며 가슴과 배는 흰색이다.",
+    },
+}
 
 
 # ====================================================
 # 3. 생태환경 계산
 # ====================================================
 
-def estimate_environment(values):
+def calculate_environment(values):
     for species, value in values.items():
         if (
             species not in SPECIES_DB
             or not math.isfinite(value)
             or not 0 <= value <= 100
         ):
-            raise ValueError("점수는 0~100 사이의 숫자여야 합니다.")
+            raise ValueError("종별 점수는 0~100 사이여야 합니다.")
 
     positive = {
         species: float(value)
@@ -263,7 +245,7 @@ def estimate_environment(values):
         reverse=True,
     )
 
-    months = [
+    month_scores = [
         sum(
             weight * 100
             for species, weight in weights
@@ -272,7 +254,7 @@ def estimate_environment(values):
         for month in range(1, 13)
     ]
 
-    times = [
+    time_scores = [
         sum(
             weight * 100
             for species, weight in weights
@@ -281,40 +263,63 @@ def estimate_environment(values):
         for slot in TIME_SLOTS
     ]
 
-    low = sum(
+    low_temp = sum(
         weight * SPECIES_DB[species]["temp"][0]
         for species, weight in weights
     )
 
-    high = sum(
+    high_temp = sum(
         weight * SPECIES_DB[species]["temp"][1]
         for species, weight in weights
     )
 
-    habitat = [
+    # 각 환경의 점수는 각각 0~100입니다.
+    # 환경 점수의 합계를 100으로 맞추지 않습니다.
+    habitat_scores = [
         sum(
             weight * SPECIES_DB[species]["hab"][index] * 100
             for species, weight in weights
         )
-        for index in range(4)
+        for index in range(len(HABITATS))
     ]
 
-    habitat_total = sum(habitat)
+    highest = max(habitat_scores)
 
-    ratios = [
-        value / habitat_total * 100 if habitat_total else 0
-        for value in habitat
+    candidates = [
+        name
+        for name, score in zip(HABITATS, habitat_scores)
+        if (
+            highest > 0
+            and score > 0
+            and highest - score <= CANDIDATE_MARGIN + 1e-9
+        )
     ]
+
+    if not candidates:
+        judgment = "등록된 자료로 판단할 수 없습니다."
+
+    elif len(candidates) == 1:
+        judgment = (
+            "현재 입력에서 상대적으로 지지되는 환경입니다. "
+            "실제 장소로 확정할 수는 없습니다."
+        )
+
+    else:
+        judgment = (
+            "여러 환경이 비슷하게 지지됩니다. "
+            "현재 종 정보만으로 구분하기 어렵습니다."
+        )
 
     return {
         "raw": positive,
         "weights": weights,
-        "months": months,
-        "times": times,
-        "low": low,
-        "high": high,
-        "habitat": habitat,
-        "habitat_ratio": ratios,
+        "months": month_scores,
+        "times": time_scores,
+        "low": low_temp,
+        "high": high_temp,
+        "habitat_scores": habitat_scores,
+        "candidates": candidates,
+        "judgment": judgment,
         "shannon": -sum(
             weight * math.log(weight)
             for _, weight in weights
@@ -327,32 +332,31 @@ def estimate_environment(values):
 
 
 # ====================================================
-# 4. 점수 붙여넣기 / 예시 / 초기화
-# 콜백으로 입력 위젯이 만들어지기 전에 값을 바꿉니다.
+# 4. 입력값 초기화 / 예시 / 붙여넣기
 # ====================================================
 
-def clear_manual():
+def reset_inputs():
     for species in SPECIES_DB:
-        st.session_state["score_" + species] = 0.0
+        st.session_state["v3_score_" + species] = 0.0
 
     for group in GROUPS:
-        st.session_state["background_" + group] = 0.0
+        st.session_state["v3_bg_" + group] = 0.0
 
-    st.session_state["paste_text"] = ""
-    st.session_state.pop("manual_result", None)
-    st.session_state.pop("paste_message", None)
+    st.session_state["v3_paste"] = ""
+    st.session_state.pop("v3_saved_input", None)
+    st.session_state.pop("v3_paste_message", None)
 
 
 def load_example():
-    clear_manual()
+    reset_inputs()
 
-    st.session_state["score_털매미"] = 99.89
-    st.session_state["score_애매미"] = 0.02
-    st.session_state["background_매미"] = 0.09
+    st.session_state["v3_score_털매미"] = 99.89
+    st.session_state["v3_score_애매미"] = 0.02
+    st.session_state["v3_bg_매미"] = 0.09
 
 
 def apply_paste():
-    text = st.session_state.get("paste_text", "")
+    text = st.session_state.get("v3_paste", "")
     parsed = {}
 
     for species in SPECIES_DB:
@@ -366,8 +370,8 @@ def apply_paste():
         if match:
             value = float(match.group(1))
 
-            if not 0 <= value <= 100:
-                st.session_state["paste_message"] = (
+            if not math.isfinite(value) or not 0 <= value <= 100:
+                st.session_state["v3_paste_message"] = (
                     False,
                     f"{species}: 점수는 0~100 사이여야 합니다.",
                 )
@@ -376,31 +380,30 @@ def apply_paste():
             parsed[species] = value
 
     if not parsed:
-        st.session_state["paste_message"] = (
+        st.session_state["v3_paste_message"] = (
             False,
-            "종 이름 뒤에 점수를 넣어 주세요. 예: 털매미 99.89%",
+            "종 이름 뒤에 점수를 입력하세요. 예: 털매미 99.89%",
         )
         return
 
-    # 이전 입력값과 섞이지 않도록 기존 값을 비웁니다.
     for species in SPECIES_DB:
-        st.session_state["score_" + species] = float(
+        st.session_state["v3_score_" + species] = float(
             parsed.get(species, 0)
         )
 
     for group in GROUPS:
-        st.session_state["background_" + group] = 0.0
+        st.session_state["v3_bg_" + group] = 0.0
 
-    st.session_state.pop("manual_result", None)
+    st.session_state.pop("v3_saved_input", None)
 
-    st.session_state["paste_message"] = (
+    st.session_state["v3_paste_message"] = (
         True,
         f"{len(parsed)}종의 점수를 반영했습니다.",
     )
 
 
 # ====================================================
-# 5. 매미 모델 파일 찾기
+# 5. 모델 파일 찾기
 # ====================================================
 
 def find_model_files():
@@ -409,15 +412,15 @@ def find_model_files():
         BASE_DIR,
     ]
 
-    filenames = [
+    names = [
         "model.keras",
         "걸생 베타 매미 종 동정 모델.keras",
     ]
 
     for folder in folders:
-        for filename in filenames:
+        for name in names:
             paths = (
-                folder / filename,
+                folder / name,
                 folder / "classes.npy",
                 folder / "feature_config.npz",
             )
@@ -435,7 +438,6 @@ def load_model_files(
     config_path,
     file_version,
 ):
-    # TensorFlow는 음원 분석을 사용할 때만 불러옵니다.
     import tensorflow as tf
 
     model = tf.keras.models.load_model(
@@ -488,7 +490,15 @@ def load_model_files(
 def classify_audio(uploaded, paths):
     import librosa
 
-    file_version = tuple(
+    suffix = Path(uploaded.name).suffix.lower()
+
+    if suffix not in {".mp3", ".wav"}:
+        raise ValueError("MP3 또는 WAV 파일을 사용해 주세요.")
+
+    if uploaded.size > 20 * 1024 * 1024:
+        raise ValueError("20MB 이하 파일을 사용해 주세요.")
+
+    version = tuple(
         (path.stat().st_mtime_ns, path.stat().st_size)
         for path in paths
     )
@@ -497,17 +507,15 @@ def classify_audio(uploaded, paths):
         str(paths[0]),
         str(paths[1]),
         str(paths[2]),
-        file_version,
+        version,
     )
 
-    suffix = Path(uploaded.name).suffix.lower()
-
     with tempfile.TemporaryDirectory() as folder:
-        temporary_path = Path(folder) / ("audio" + suffix)
-        temporary_path.write_bytes(uploaded.getvalue())
+        audio_path = Path(folder) / ("audio" + suffix)
+        audio_path.write_bytes(uploaded.getvalue())
 
         audio, sr = librosa.load(
-            str(temporary_path),
+            str(audio_path),
             sr=sample_rate,
             mono=True,
             duration=61,
@@ -519,12 +527,11 @@ def classify_audio(uploaded, paths):
     duration = len(audio) / sr
 
     if duration > 60:
-        raise ValueError("60초 이하의 음원을 올려 주세요.")
+        raise ValueError("60초 이하 음원을 사용해 주세요.")
 
     if np.max(np.abs(audio)) == 0:
-        raise ValueError("완전히 무음인 음원은 분석할 수 없습니다.")
+        raise ValueError("완전히 무음인 파일은 분석할 수 없습니다.")
 
-    # 기존 학습 코드와 같은 특징 추출 방식
     mfcc = librosa.feature.mfcc(
         y=audio,
         sr=sr,
@@ -534,9 +541,8 @@ def classify_audio(uploaded, paths):
     feature = np.mean(mfcc, axis=1).astype(np.float32)
 
     if not np.all(np.isfinite(feature)):
-        raise ValueError("음원 특징 추출에 실패했습니다.")
+        raise ValueError("특징 추출에 실패했습니다.")
 
-    # 정규화는 저장된 모델 내부에서 처리합니다.
     scores = np.asarray(
         model.predict(
             feature.reshape(1, -1),
@@ -552,7 +558,7 @@ def classify_audio(uploaded, paths):
         or np.any(scores > 1)
         or not np.isclose(scores.sum(), 1, atol=1e-3)
     ):
-        raise ValueError("모델 예측 점수가 올바르지 않습니다.")
+        raise ValueError("모델 예측 결과가 올바르지 않습니다.")
 
     return {
         category: float(score * 100)
@@ -561,29 +567,90 @@ def classify_audio(uploaded, paths):
 
 
 # ====================================================
-# 7. 결과 표시
+# 7. 결과 화면
 # ====================================================
 
 def show_result(result):
     st.divider()
     st.subheader("생태환경 참고 결과")
 
+    # 서식 환경을 가장 먼저 표시
+    st.markdown("### 서식 환경 후보")
+
+    if result["candidates"]:
+        st.write(" · ".join(result["candidates"]))
+    else:
+        st.write("판단 불가")
+
+    st.info(result["judgment"])
+
+    habitat_table = pd.DataFrame({
+        "서식 환경": HABITATS,
+        "근거 점수 (0~100)": [
+            round(score, 1)
+            for score in result["habitat_scores"]
+        ],
+        "후보 여부": [
+            "후보" if name in result["candidates"] else "—"
+            for name in HABITATS
+        ],
+    }).sort_values(
+        "근거 점수 (0~100)",
+        ascending=False,
+    )
+
+    st.dataframe(
+        habitat_table,
+        hide_index=True,
+        use_container_width=True,
+    )
+
+    st.caption(
+        "점수는 실제 서식지의 확률이 아닙니다. "
+        "환경별 점수를 합계 100으로 환산하지 않습니다. "
+        "100점도 실제 장소라는 확정을 뜻하지 않습니다."
+    )
+
+    with st.expander("서식 환경 계산 설명"):
+        st.write(
+            "종별 입력 점수를 합계 1로 환산한 뒤, "
+            "등록된 서식 환경 코드와 곱해 더합니다."
+        )
+
+        st.write(
+            f"최고점과 {CANDIDATE_MARGIN:.0f}점 이내인 환경을 "
+            "함께 후보로 표시합니다."
+        )
+
+        st.caption(
+            "10점 차이는 검증된 생태학적 기준이 아닌 "
+            "임시 표시 기준입니다."
+        )
+
+        st.warning(
+            "현재 매미 6종은 서식 환경 코드가 같습니다. "
+            "따라서 매미 종 정보만으로 도심·산림·농경지를 "
+            "구분할 수 없습니다."
+        )
+
+    st.markdown("### 시기와 활동 조건")
+
     best_months = [
         f"{index + 1}월"
-        for index, value in enumerate(result["months"])
-        if abs(value - max(result["months"])) < 0.01
+        for index, score in enumerate(result["months"])
+        if abs(score - max(result["months"])) < 0.01
     ]
 
     best_times = [
         slot
-        for slot, value in zip(TIME_SLOTS, result["times"])
-        if abs(value - max(result["times"])) < 0.01
+        for slot, score in zip(TIME_SLOTS, result["times"])
+        if abs(score - max(result["times"])) < 0.01
     ]
 
     columns = st.columns(3)
 
     with columns[0]:
-        st.caption("시기")
+        st.caption("참고 시기")
         st.write(" · ".join(best_months))
 
     with columns[1]:
@@ -596,31 +663,33 @@ def show_result(result):
             f'{result["low"]:.1f} ~ {result["high"]:.1f} °C'
         )
 
-    species, weight = result["weights"][0]
+    dominant, weight = result["weights"][0]
 
     st.success(
-        f"가장 크게 반영된 종: {species}"
+        f"가장 크게 반영된 종: {dominant}"
         f" · 반영 비중 {weight * 100:.1f}%"
     )
 
     st.caption(
-        "기존 생태 정보를 조합한 참고값입니다. "
-        "실제 녹음 시기·기온·서식지의 관측값이나 확률이 아닙니다."
+        "시기·시간·기온도 등록된 생태 정보를 조합한 참고값이며 "
+        "실제 녹음 환경의 관측값이나 확률이 아닙니다."
     )
 
     with st.expander("종별 비중과 상세 계산"):
-        species_table = pd.DataFrame([
-            {
-                "종": species,
-                "그룹": SPECIES_DB[species]["group"],
-                "입력 점수 (%)": round(result["raw"][species], 2),
-                "반영 비중 (%)": round(weight * 100, 2),
-            }
-            for species, weight in result["weights"]
-        ])
-
         st.dataframe(
-            species_table,
+            pd.DataFrame([
+                {
+                    "종": species,
+                    "그룹": SPECIES_DB[species]["group"],
+                    "입력 점수 (%)": round(
+                        result["raw"][species], 2
+                    ),
+                    "반영 비중 (%)": round(
+                        weight * 100, 2
+                    ),
+                }
+                for species, weight in result["weights"]
+            ]),
             hide_index=True,
             use_container_width=True,
         )
@@ -629,10 +698,7 @@ def show_result(result):
 
         st.dataframe(
             pd.DataFrame({
-                "월": [
-                    f"{month}월"
-                    for month in range(1, 13)
-                ],
+                "월": [f"{month}월" for month in range(1, 13)],
                 "적합도 (%)": result["months"],
             }),
             hide_index=True,
@@ -650,31 +716,19 @@ def show_result(result):
             use_container_width=True,
         )
 
-        st.markdown("**서식 환경 비교**")
-
-        st.dataframe(
-            pd.DataFrame({
-                "서식 환경": HABITATS,
-                "적합도 (%)": result["habitat"],
-                "상대 비중 (%)": result["habitat_ratio"],
-            }),
-            hide_index=True,
-            use_container_width=True,
-        )
-
         st.caption(
             f'점수 기반 H′: {result["shannon"]:.4f}'
             f' / 점수 기반 D: {result["simpson"]:.4f}'
         )
 
         st.info(
-            "H′와 D는 입력 점수의 분포를 계산한 값입니다. "
-            "실제 개체수 기반 생물다양성·우점도 지수가 아닙니다. "
-            "서로 다른 모델의 점수도 같은 기준으로 "
-            "비교 가능하다고 보장할 수 없습니다."
+            "H′와 D는 분류 점수의 분포를 계산한 값입니다. "
+            "실제 개체수 기반 생물다양성 지수가 아닙니다. "
+            "서로 다른 모델의 점수가 같은 기준으로 "
+            "비교 가능하다는 보장도 없습니다."
         )
 
-    with st.expander("입력된 종의 생태 사전"):
+    with st.expander("종별 생태 사전"):
         for species, _ in result["weights"]:
             info = SPECIES_DB[species]
 
@@ -708,7 +762,7 @@ def show_result(result):
             ]
 
             st.write(
-                "서식 환경: "
+                "등록된 서식 환경: "
                 + ", ".join(habitat_names)
             )
 
@@ -718,47 +772,47 @@ def show_result(result):
 
 
 # ====================================================
-# 8. 점수 직접 입력 화면
+# 8. 수동 입력 화면
 # ====================================================
 
 def manual_page():
     for species in SPECIES_DB:
         st.session_state.setdefault(
-            "score_" + species,
+            "v3_score_" + species,
             0.0,
         )
 
     for group in GROUPS:
         st.session_state.setdefault(
-            "background_" + group,
+            "v3_bg_" + group,
             0.0,
         )
 
-    first, second = st.columns(2)
+    left, right = st.columns(2)
 
-    with first:
+    with left:
         st.button(
             "예시 넣기",
             on_click=load_example,
             use_container_width=True,
         )
 
-    with second:
+    with right:
         st.button(
             "초기화",
-            on_click=clear_manual,
+            on_click=reset_inputs,
             use_container_width=True,
         )
 
     with st.expander("모델 결과 텍스트 붙여넣기"):
         st.text_area(
-            "모델에서 복사한 결과",
+            "종 이름과 점수",
             placeholder=(
                 "1 털매미 99.89%\n"
                 "2 배경소리 0.09%\n"
                 "3 애매미 0.02%"
             ),
-            key="paste_text",
+            key="v3_paste",
         )
 
         st.button(
@@ -768,18 +822,20 @@ def manual_page():
 
         st.caption(
             "생물 종 점수만 반영합니다. "
-            "배경소리 점수는 아래에서 직접 입력하세요."
+            "배경소리는 아래에서 직접 입력하세요."
         )
 
-        if "paste_message" in st.session_state:
-            success, message = st.session_state["paste_message"]
+        message = st.session_state.get("v3_paste_message")
+
+        if message:
+            success, text = message
 
             if success:
-                st.success(message)
+                st.success(text)
             else:
-                st.error(message)
+                st.error(text)
 
-    with st.form("species_form"):
+    with st.form("v3_manual_form"):
         columns = st.columns(3)
 
         for column, group in zip(columns, GROUPS):
@@ -796,7 +852,7 @@ def manual_page():
                         max_value=100.0,
                         step=0.01,
                         format="%.2f",
-                        key="score_" + species,
+                        key="v3_score_" + species,
                     )
 
                 st.number_input(
@@ -805,7 +861,7 @@ def manual_page():
                     max_value=100.0,
                     step=0.01,
                     format="%.2f",
-                    key="background_" + group,
+                    key="v3_bg_" + group,
                 )
 
         submitted = st.form_submit_button(
@@ -815,34 +871,48 @@ def manual_page():
         )
 
     if submitted:
+        values = {
+            species: float(
+                st.session_state["v3_score_" + species]
+            )
+            for species in SPECIES_DB
+        }
+
+        backgrounds = {
+            group: float(
+                st.session_state["v3_bg_" + group]
+            )
+            for group in GROUPS
+        }
+
         try:
-            values = {
-                species: float(
-                    st.session_state["score_" + species]
-                )
-                for species in SPECIES_DB
+            calculate_environment(values)
+
+            st.session_state["v3_saved_input"] = {
+                "values": values,
+                "backgrounds": backgrounds,
             }
 
-            st.session_state["manual_result"] = (
-                estimate_environment(values)
-            )
-
         except ValueError as error:
-            st.session_state.pop("manual_result", None)
+            st.session_state.pop("v3_saved_input", None)
             st.error(str(error))
 
-    if "manual_result" in st.session_state:
+    saved = st.session_state.get("v3_saved_input")
+
+    if saved:
         if any(
-            st.session_state["background_" + group] > 0
-            for group in GROUPS
+            value > 0
+            for value in saved["backgrounds"].values()
         ):
             st.caption(
-                "배경소리 점수는 계산에서 제외됩니다. "
+                "배경소리를 제외한 생물 종 점수만 사용합니다. "
                 "배경 점수가 높다면 실제 종 검출 여부를 "
                 "먼저 확인해 주세요."
             )
 
-        show_result(st.session_state["manual_result"])
+        show_result(
+            calculate_environment(saved["values"])
+        )
 
 
 # ====================================================
@@ -865,7 +935,7 @@ def audio_page():
             "'점수 직접 입력' 기능은 바로 사용할 수 있습니다."
         )
 
-        with st.expander("모델 연결 방법"):
+        with st.expander("모델 파일 넣는 위치"):
             st.code(
                 "models/\n"
                 "└── cicada/\n"
@@ -875,27 +945,24 @@ def audio_page():
                 language="text",
             )
 
-            st.write(
-                "기존 모델명 "
-                "'걸생 베타 매미 종 동정 모델.keras'도 지원합니다."
-            )
-
             st.caption(
-                "세 파일은 같은 학습에서 나온 파일이어야 합니다. "
-                "개구리·새 자동 분류는 아직 연결하지 않았습니다."
+                "기존 모델명 "
+                "'걸생 베타 매미 종 동정 모델.keras'도 지원합니다. "
+                "세 파일은 같은 학습에서 생성된 것이어야 합니다. "
+                "개구리·새 자동 분류는 연결되어 있지 않습니다."
             )
 
     uploaded = st.file_uploader(
         "녹음 파일 선택",
-        type=["wav", "mp3"],
-        key="uploaded_audio",
+        type=["mp3", "wav"],
+        key="v3_audio",
     )
 
     if uploaded is None:
         return
 
     if uploaded.size > 20 * 1024 * 1024:
-        st.error("20MB 이하의 파일을 올려 주세요.")
+        st.error("20MB 이하 파일을 사용해 주세요.")
         return
 
     st.audio(uploaded)
@@ -914,49 +981,46 @@ def audio_page():
 
             st.caption(f"음원 길이: {duration:.1f}초")
 
-            score_table = pd.DataFrame(
-                sorted(
-                    scores.items(),
-                    key=lambda item: item[1],
-                    reverse=True,
-                ),
-                columns=["종", "모델 점수 (%)"],
-            )
-
             st.dataframe(
-                score_table,
+                pd.DataFrame(
+                    sorted(
+                        scores.items(),
+                        key=lambda item: item[1],
+                        reverse=True,
+                    ),
+                    columns=["종", "모델 점수 (%)"],
+                ),
                 hide_index=True,
                 use_container_width=True,
             )
 
             st.warning(
-                "예측 점수는 정답 확률이나 실제 정확도가 아닙니다. "
-                "학습하지 않은 소리도 등록된 종류로 분류될 수 있습니다. "
-                "여러 종의 존재를 개별적으로 검출하는 모델은 아닙니다."
+                "모델 점수는 정답 확률이나 실제 정확도가 아닙니다. "
+                "학습하지 않은 소리도 등록된 종류로 분류될 수 있으며, "
+                "여러 종을 개별 검출하는 방식은 아닙니다."
             )
 
             best_species = max(scores, key=scores.get)
 
             if best_species == "배경소리":
                 st.info(
-                    "배경소리 점수가 가장 높아 환경 추정을 보류했습니다. "
-                    "생물 소리가 뚜렷한 녹음을 사용해 주세요."
+                    "배경소리 점수가 가장 높아 환경 추정을 보류했습니다."
                 )
                 return
 
-            biological_scores = {
+            values = {
                 species: score
                 for species, score in scores.items()
                 if species in SPECIES_DB
             }
 
             st.caption(
-                "배경소리를 제외하고 나머지 점수를 "
-                "다시 100%로 환산해 계산합니다."
+                "배경소리를 제외한 생물 종 점수를 "
+                "합계 100%로 환산해 반영합니다."
             )
 
             show_result(
-                estimate_environment(biological_scores)
+                calculate_environment(values)
             )
 
         except Exception as error:
@@ -969,6 +1033,9 @@ def audio_page():
 
 def main():
     st.title("소리로 살펴보는 생태환경")
+
+    # 새 코드가 적용됐는지 확인하는 표시입니다.
+    st.success("서식지 후보 방식 · V3")
 
     st.caption(
         "종별 예측 점수를 입력하거나 매미 녹음 파일을 올려 보세요."
@@ -989,7 +1056,8 @@ def main():
 
     st.caption(
         "Habitat-Prediction-Model · "
-        "생태 자료는 사용자가 제공한 원본 수치이며 별도 검증이 필요합니다."
+        "생태 자료는 사용자가 제공한 기존 값이며 "
+        "별도 검증이 필요합니다."
     )
 
     st.caption(
